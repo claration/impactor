@@ -192,8 +192,8 @@ fn collect_embeded_bundles_from_dir(dir: &PathBuf) -> Result<Vec<Bundle>, Error>
         }
     }
 
-    fn is_dylib_file(name: &str) -> bool {
-        name.ends_with(".dylib")
+    fn is_library_file(name: &str) -> bool {
+        name.ends_with(".dylib") || name.ends_with(".so")
     }
 
     for entry in fs::read_dir(dir)? {
@@ -201,8 +201,11 @@ fn collect_embeded_bundles_from_dir(dir: &PathBuf) -> Result<Vec<Bundle>, Error>
         let path = entry.path();
 
         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-            // Handle dylib files as bundles (even though they don't have Info.plist)
-            if path.is_file() && is_dylib_file(name) && !path.is_symlink() && is_macho_dylib(&path)
+            // Handle library files as bundles (even though they don't have Info.plist)
+            if path.is_file()
+                && is_library_file(name)
+                && !path.is_symlink()
+                && is_macho_dylib(&path)
             {
                 // Create a pseudo-bundle for dylib files
                 bundles.push(Bundle {
