@@ -50,6 +50,56 @@ pub fn decrypt_cbc(usr: &ClientVerifier<Sha256>, data: &[u8]) -> Vec<u8> {
         .unwrap()
 }
 
+/// Sends one of the GSA login packets, retrying across the local VPN proxy
+/// and a direct connection until Apple answers with a real plist. Apple's edge
+/// intermittently denies non-Apple clients with an HTML page (503/401); those
+/// are retried and alternated between routes, while real service replies (any
+/// ec value) are returned immediately.
+pub(crate) async fn post_gsa_retry(
+    default_client: &reqwest::Client,
+    url: &str,
+    headers: reqwest::header::HeaderMap,
+    body: Vec<u8>,
+) -> Result<plist::Dictionary, Error> {
+    let mut attempt: u32 = 0;
+    let mut last_report: String;
+    loop {
+        attempt += 1;
+        let client = if attempt % 2 == 1 {
+            match crate::system_proxy_url() {
+                Some(proxy_url) => crate::client_with_proxy(Some(&proxy_url))
+                    .unwrap_or_else(|_| default_client.clone()),
+                None => default_client.clone(),
+            }
+        } else {
+            crate::client_with_proxy(None).unwrap_or_else(|_| default_client.clone())
+        };
+        match client
+            .post(url)
+            .headers(headers.clone())
+            .body(body.clone())
+            .send()
+            .await
+        {
+            Ok(resp) => {
+                let status = resp.status();
+                match parse_response(Ok(resp)).await {
+                    Ok(dict) => return Ok(dict),
+                    Err(err) => last_report = format!("HTTP {status}: {err}"),
+                }
+            }
+            Err(err) => last_report = format!("connection error: {err}"),
+        }
+        if attempt >= 90 {
+            return Err(Error::AuthSrpWithMessage(
+                0,
+                format!("Apple denied every attempt (VPN and direct). Last: {last_report}"),
+            ));
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+    }
+}
+
 pub fn create_session_key(usr: &ClientVerifier<Sha256>, name: &str) -> Vec<u8> {
     Hmac::<Sha256>::new_from_slice(&usr.key())
         .unwrap()

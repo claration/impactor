@@ -8,7 +8,7 @@ license = "MPL-2.0"
 repository.workspace = true
 
 [dependencies]
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 plist.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
