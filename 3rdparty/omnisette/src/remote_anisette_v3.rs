@@ -282,34 +282,61 @@ impl AnisetteClient {
     pub async fn provision(&self, state: &mut AnisetteState) -> Result<(), AnisetteError> {
         debug!("Provisioning Anisette");
         let http_client = make_reqwest()?;
-        let resp = self
+
+        // Apple's edge currently denies the classic /lookup GET (401/503 HTML)
+        // for non-Apple clients while windows are closed, but the MidService
+        // provisioning endpoints still answer. Fall back to the stable
+        // MidService URLs whenever the lookup is unavailable.
+        const MID_START_FALLBACK: &str =
+            "https://gsa.apple.com/grandslam/MidService/startMachineProvisioning";
+        const MID_FINISH_FALLBACK: &str =
+            "https://gsa.apple.com/grandslam/MidService/finishMachineProvisioning";
+
+        let lookup_text = match self
             .build_apple_request(
                 &state,
                 http_client.get("https://gsa.apple.com/grandslam/GsService2/lookup"),
             )
             .send()
-            .await?;
-        let text = resp.text().await?;
+            .await
+        {
+            Ok(resp) => resp.text().await.unwrap_or_default(),
+            Err(_) => String::new(),
+        };
 
-        let protocol_val = plist::Value::from_reader(Cursor::new(text.as_str()))?;
-        let urls = protocol_val
-            .as_dictionary()
-            .unwrap()
-            .get("urls")
-            .unwrap()
-            .as_dictionary()
-            .unwrap();
-
-        let start_provisioning_url = urls
-            .get("midStartProvisioning")
-            .unwrap()
-            .as_string()
-            .unwrap();
-        let end_provisioning_url = urls
-            .get("midFinishProvisioning")
-            .unwrap()
-            .as_string()
-            .unwrap();
+        let (start_provisioning_url, end_provisioning_url) = match plist::Value::from_reader(
+            Cursor::new(lookup_text.as_str()),
+        ) {
+            Ok(protocol_val) => {
+                let urls = protocol_val
+                    .as_dictionary()
+                    .and_then(|d| d.get("urls"))
+                    .and_then(|u| u.as_dictionary());
+                match urls {
+                    Some(urls) => (
+                        urls.get("midStartProvisioning")
+                            .and_then(|v| v.as_string())
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| MID_START_FALLBACK.to_owned()),
+                        urls.get("midFinishProvisioning")
+                            .and_then(|v| v.as_string())
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| MID_FINISH_FALLBACK.to_owned()),
+                    ),
+                    None => (
+                        MID_START_FALLBACK.to_owned(),
+                        MID_FINISH_FALLBACK.to_owned(),
+                    ),
+                }
+            }
+            Err(_) => {
+                debug!("lookup unavailable (edge denial); using MidService fallback URLs");
+                (
+                    MID_START_FALLBACK.to_owned(),
+                    MID_FINISH_FALLBACK.to_owned(),
+                )
+            }
+        };
         debug!(
             "Got provisioning urls: {} and {}",
             start_provisioning_url, end_provisioning_url
@@ -361,7 +388,7 @@ impl AnisetteClient {
                             request: Dictionary::new(),
                         };
                         let resp = self
-                            .build_apple_request(state, http_client.post(start_provisioning_url))
+                            .build_apple_request(state, http_client.post(start_provisioning_url.as_str()))
                             .body(plist_to_string(&body_data)?)
                             .send()
                             .await?;
@@ -399,7 +426,7 @@ impl AnisetteClient {
                             request: Dictionary::from_iter([("cpim", cpim)].into_iter()),
                         };
                         let resp = self
-                            .build_apple_request(state, http_client.post(end_provisioning_url))
+                            .build_apple_request(state, http_client.post(end_provisioning_url.as_str()))
                             .body(plist_to_string(&body_data)?)
                             .send()
                             .await?;
@@ -495,7 +522,25 @@ impl AnisetteHeadersProvider for RemoteAnisetteProviderV3 {
 
         let state = self.state.as_mut().unwrap();
         if !state.is_provisioned() {
-            client.provision(state).await?;
+            // The edge can deny mid-provisioning calls while windows are
+            // closed; keep retrying for a few minutes before giving up.
+            let mut attempts: u32 = 0;
+            loop {
+                match client.provision(state).await {
+                    Ok(()) => break,
+                    Err(err) => {
+                        attempts += 1;
+                        if attempts >= 40 {
+                            return Err(err);
+                        }
+                        debug!(
+                            "provisioning attempt {} failed: {}; retrying in 10s",
+                            attempts, err
+                        );
+                        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    }
+                }
+            }
             plist::to_file_xml(&config_path, state)?;
         }
         let data = match client.get_headers(&state).await {
