@@ -70,15 +70,72 @@ pub enum Error {
     SHA2(#[from] sha2::digest::InvalidLength),
 }
 
-pub fn client() -> Result<reqwest::Client, Error> {
+/// Reads the Windows per-user proxy from the registry and returns a usable
+/// proxy URL. Handles the "http=127.0.0.1:PORT[;https=...]" value format that
+/// VPN clients like Psiphon write, which stock system-proxy handling fails to
+/// parse (it silently ignores the proxy in that case).
+pub fn system_proxy_url() -> Option<String> {
+    #[cfg(windows)]
+    {
+        let out = std::process::Command::new("reg")
+            .args([
+                "query",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+                "/v",
+                "ProxyServer",
+            ])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let line = text.lines().find(|l| l.contains("ProxyServer"))?;
+        let raw = line.split_whitespace().last()?.trim().to_string();
+        let hostport = raw
+            .split(';')
+            .find_map(|part| {
+                part.strip_prefix("http=")
+                    .or_else(|| part.strip_prefix("https="))
+            })
+            .unwrap_or(raw.as_str())
+            .to_string();
+        if hostport.is_empty() || !hostport.contains(':') {
+            return None;
+        }
+        return Some(if hostport.starts_with("http://") {
+            hostport
+        } else {
+            format!("http://{hostport}")
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
+/// Builds the standard HTTP client used for Apple requests. When `proxy` is
+/// `None` a direct connection is forced (system/env proxies ignored); when
+/// `Some`, that proxy is used explicitly.
+pub fn client_with_proxy(proxy: Option<&str>) -> Result<reqwest::Client, Error> {
     const APPLE_ROOT: &[u8] = include_bytes!("./apple_root.der");
-    let client = reqwest::ClientBuilder::new()
+    let builder = reqwest::ClientBuilder::new()
         .add_root_certificate(reqwest::Certificate::from_der(APPLE_ROOT)?)
         // uncomment when debugging w/ charles proxy
         // .danger_accept_invalid_certs(true)
         .http1_title_case_headers()
-        .connection_verbose(true)
-        .build()?;
+        .connection_verbose(true);
+    let builder = match proxy {
+        Some(url) => builder.proxy(reqwest::Proxy::all(url)?),
+        None => builder.no_proxy(),
+    };
+    Ok(builder.build()?)
+}
 
-    Ok(client)
+pub fn client() -> Result<reqwest::Client, Error> {
+    match system_proxy_url() {
+        Some(url) => client_with_proxy(Some(&url)),
+        None => client_with_proxy(None),
+    }
 }
