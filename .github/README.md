@@ -42,7 +42,7 @@ Some distributions (like Bazzite) may need you to run `sudo update-crypto-polici
 
 Visit [releases](https://github.com/khcrysalis/PlumeImpactor/releases) and get the latest version for your computer.
 
-###### *This is also available on flatpak & homebrew.*
+###### *This is also available on flathub & homebrew.*
 
 **Linux:**
 
