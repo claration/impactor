@@ -26,6 +26,15 @@ pub enum Error {
         http_code: Option<u16>,
         message: String,
     },
+    /// We don't print out the response content because it generally does not matter too much,
+    /// and if we display this in a menu then it will probably be way too big.
+    /// I leave it in for ease of debugging.
+    #[error("HTTP request error {status} attempting to connect to {url}")]
+    GeneralHttpError {
+        url: String,
+        status: u16,
+        // body: String,
+    },
     #[error("Request to developer session failed")]
     DeveloperSessionRequestFailed,
     #[error("Authentication SRP error {0}: {1}")]

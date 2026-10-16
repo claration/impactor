@@ -14,8 +14,19 @@ use crate::Error;
 pub async fn parse_response(
     res: Result<Response, reqwest::Error>,
 ) -> Result<plist::Dictionary, Error> {
-    let res = res?.text().await?;
-    let res: plist::Dictionary = plist::from_bytes(res.as_bytes())?;
+    let res = res?;
+    let status = res.status();
+    
+    if !status.is_success() {
+        return Err(Error::GeneralHttpError {
+            url: res.url().to_string(),
+            status: status.as_u16(),
+            // body: res.text().await?,
+        })
+    }
+    
+    let text = res.text().await?;
+    let res: plist::Dictionary = plist::from_bytes(text.as_bytes())?;
     let res: plist::Value = res.get("Response").unwrap().to_owned();
     match res {
         plist::Value::Dictionary(dict) => Ok(dict),
