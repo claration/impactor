@@ -37,7 +37,7 @@ pub enum Message {
     NavigateToScreen(ImpactorScreenType),
     NextScreen,
     PreviousScreen,
-    TabPressed {shift: bool},
+    TabPressed { shift: bool },
 
     // Device management
     ComboBoxSelected(String),
@@ -285,12 +285,12 @@ impl Impactor {
             }
 
             Message::TabPressed { shift } => {
-                        if shift {
-                            focus_previous()
-                        } else {
-                            focus_next()
-                        }
-                    }
+                if shift {
+                    focus_previous()
+                } else {
+                    focus_next()
+                }
+            }
             Message::NextScreen => {
                 let next_screen = match self.current_screen {
                     ImpactorScreen::Main(_) => ImpactorScreenType::Installer,
