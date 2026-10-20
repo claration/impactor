@@ -846,19 +846,6 @@ impl Impactor {
             None
         });
 
-
-        event::listen_with(|event, status, _window| match (event, status) {
-            (
-                Event::Keyboard(keyboard::Event::KeyPressed {
-                    key: Key::Named(key::Named::Tab),
-                    modifiers,
-                    ..
-                }),
-                Status::Ignored,
-            ) => Some(Message::TabPressed { shift: modifiers.shift() }),
-            _ => None,
-        });
-
         Subscription::batch(vec![
             device_subscription,
             tray_subscription,
