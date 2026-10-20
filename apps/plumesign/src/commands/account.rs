@@ -113,6 +113,16 @@ fn get_settings_path() -> PathBuf {
     get_data_path().join("accounts.json")
 }
 
+/// The anisette configuration: Apple's local libraries when present (omnisette decides), else the v3
+/// server from `PLUMESIGN_ANISETTE_URL` (for people who run their own anisette-v3-server), else omnisette's default.
+fn anisette_config() -> AnisetteConfiguration {
+    let config = AnisetteConfiguration::default().set_configuration_path(get_data_path());
+    match std::env::var("PLUMESIGN_ANISETTE_URL") {
+        std::result::Result::Ok(url) if !url.trim().is_empty() => config.set_anisette_url_v3(url.trim().to_string()),
+        _ => config,
+    }
+}
+
 pub async fn get_authenticated_account() -> Result<DeveloperSession> {
     let settings_path = get_settings_path();
     let settings = AccountStore::load(&Some(settings_path.clone())).await?;
@@ -126,7 +136,7 @@ pub async fn get_authenticated_account() -> Result<DeveloperSession> {
         })?
         .clone();
 
-    let anisette_config = AnisetteConfiguration::default().set_configuration_path(get_data_path());
+    let anisette_config = anisette_config();
 
     log::info!("Restoring session for {}...", gsa_account.email());
 
@@ -185,7 +195,7 @@ async fn login(args: LoginArgs) -> Result<()> {
         std::result::Result::Ok(TwoFactorAction::SubmitCode(input.to_string()))
     };
 
-    let anisette_config = AnisetteConfiguration::default().set_configuration_path(get_data_path());
+    let anisette_config = anisette_config();
 
     let username = if let Some(user) = args.username {
         user

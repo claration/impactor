@@ -87,12 +87,21 @@ impl AnisetteConfiguration {
         &self.anisette_url
     }
 
+    pub fn anisette_url_v3(&self) -> &String {
+        &self.anisette_url_v3
+    }
+
     pub fn configuration_path(&self) -> &PathBuf {
         &self.configuration_path
     }
 
     pub fn set_anisette_url(mut self, anisette_url: String) -> AnisetteConfiguration {
         self.anisette_url = anisette_url;
+        self
+    }
+
+    pub fn set_anisette_url_v3(mut self, anisette_url_v3: String) -> AnisetteConfiguration {
+        self.anisette_url_v3 = anisette_url_v3;
         self
     }
 
