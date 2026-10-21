@@ -153,6 +153,12 @@ macro_rules! get_plist_string {
     }};
 }
 
+impl Bundle {
+    pub fn get_platform(&self) -> Option<String> {
+        get_plist_string!(self, "DTPlatformName")
+    }
+}
+
 impl PlistInfoTrait for Bundle {
     fn get_name(&self) -> Option<String> {
         get_plist_string!(self, "CFBundleDisplayName")

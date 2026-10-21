@@ -143,10 +143,17 @@ pub async fn execute(args: SignArgs) -> Result<()> {
         None
     };
 
-    if let Some((session, team_id)) = team_id_opt {
+    if let Some((mut session, team_id)) = team_id_opt {
         signer
             .modify_bundle(&bundle, &Some(team_id.clone()))
             .await?;
+
+        let bundle_platform = bundle.get_platform();
+        let device_type = match bundle_platform.as_deref() {
+            Some(p) if p.contains("appletv") => plume_core::developer::DeveloperDeviceType::Tvos,
+            _ => plume_core::developer::DeveloperDeviceType::Ios,
+        };
+        session.set_device_type(device_type);
 
         if let Some(ref dev) = device {
             log::info!("Registering device: {} ({})", dev.name, dev.udid);
