@@ -69,18 +69,7 @@ impl Account {
             .send()
             .await?;
         let status = req.status().as_u16();
-        let mut new_state = req.json::<AuthenticationExtras>().await?;
-        if status == 201 {
-            new_state.new_state = Some(LoginState::NeedsSMS2FAVerification(VerifyBody {
-                phone_number: PhoneNumber {
-                    id: new_state.trusted_phone_numbers.first().unwrap().id,
-                },
-                mode: "sms".to_string(),
-                security_code: None,
-            }));
-        }
-
-        Ok(new_state)
+        parse_auth_extras_response(status, &req.bytes().await?)
     }
 
     pub async fn verify_2fa(&self, code: String) -> Result<LoginState, Error> {
@@ -151,7 +140,11 @@ impl Account {
             headers.insert("Content-Type", HeaderValue::from_static("application/json"));
             headers.insert("Accept", HeaderValue::from_static("application/json"));
         }
-        headers.insert("User-Agent", HeaderValue::from_static("Xcode"));
+        headers.insert(
+            "User-Agent",
+            HeaderValue::from_str(&valid_anisette.user_agent).unwrap(),
+        );
+        headers.insert("Connection", HeaderValue::from_static("close"));
         headers.insert("Accept-Language", HeaderValue::from_static("en-us"));
         headers.append(
             "X-Apple-Identity-Token",
@@ -163,5 +156,167 @@ impl Account {
         }
 
         headers
+    }
+}
+
+// Preserve HTTP failures even when the response body is HTML or empty.
+fn parse_auth_extras_response(status: u16, body: &[u8]) -> Result<AuthenticationExtras, Error> {
+    if !(200..300).contains(&status) {
+        return Err(Error::AuthSrpWithMessage(
+            status.into(),
+            "Failed to retrieve authentication options".into(),
+        ));
+    }
+    parse_auth_extras(status, serde_json::from_slice(body)?)
+}
+
+fn parse_auth_extras(status: u16, value: serde_json::Value) -> Result<AuthenticationExtras, Error> {
+    let flag = |name: &str| {
+        value
+            .get("securityCode")
+            .and_then(|v| v.get(name))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    };
+    if flag("securityCodeLocked")
+        || (status != 201 && (flag("securityCodeCooldown") || flag("tooManyCodesSent")))
+    {
+        return Err(Error::AuthSrpWithMessage(
+            0,
+            "SMS verification is locked or delivery is cooling down".into(),
+        ));
+    }
+    let mut extras: AuthenticationExtras = serde_json::from_value(value.clone())?;
+    if status == 201 {
+        // Prefer Apple's selected challenge number. A sole returned number is unambiguous.
+        let selected = match value
+            .get("phoneNumber")
+            .or_else(|| value.get("trustedPhoneNumber"))
+        {
+            Some(number) => Some(
+                number
+                    .get("id")
+                    .and_then(|id| id.as_u64())
+                    .and_then(|id| u32::try_from(id).ok())
+                    .ok_or_else(|| {
+                        Error::AuthSrpWithMessage(0, "Invalid selected SMS challenge number".into())
+                    })?,
+            ),
+            None => None,
+        };
+        let id = selected
+            .or_else(|| match extras.trusted_phone_numbers.as_slice() {
+                [number] => Some(number.id),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                Error::AuthSrpWithMessage(0, "Missing selected SMS challenge number".into())
+            })?;
+        if value
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .is_some_and(|m| m != "sms")
+        {
+            return Err(Error::AuthSrpWithMessage(
+                0,
+                "Unsupported non-SMS authentication challenge".into(),
+            ));
+        }
+        extras.new_state = Some(LoginState::NeedsSMS2FAVerification(VerifyBody {
+            phone_number: PhoneNumber { id },
+            mode: "sms".into(),
+            security_code: None,
+        }));
+    }
+    Ok(extras)
+}
+
+#[cfg(test)]
+mod sms_options_tests {
+    use super::*;
+    #[test]
+    fn lookup_http_error_precedes_body_decoding() {
+        for body in [b"<html>Forbidden</html>".as_slice(), b"".as_slice()] {
+            assert!(matches!(
+                parse_auth_extras_response(403, body),
+                Err(Error::AuthSrpWithMessage(403, _))
+            ));
+        }
+    }
+    #[test]
+    fn successful_lookup_with_invalid_json_fails() {
+        assert!(parse_auth_extras_response(200, b"not json").is_err());
+    }
+    #[test]
+    fn ambiguous_created_response_does_not_guess_a_number() {
+        let numbers = [7, 8].map(|id| {
+            serde_json::json!({
+                "id": id, "numberWithDialCode": "masked", "lastTwoDigits": "00", "pushMode": "sms"
+            })
+        });
+        assert!(
+            parse_auth_extras(201, serde_json::json!({"trustedPhoneNumbers": numbers})).is_err()
+        );
+    }
+    #[test]
+    fn invalid_explicit_selection_is_not_replaced_by_the_sole_number() {
+        let number = serde_json::json!({"id": 7, "numberWithDialCode": "masked", "lastTwoDigits": "00", "pushMode": "sms"});
+        assert!(
+            parse_auth_extras(
+                201,
+                serde_json::json!({
+                    "trustedPhoneNumbers": [number], "phoneNumber": {"id": "invalid"}
+                })
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn locked_verification_and_non_sms_challenges_stop() {
+        assert!(parse_auth_extras(201, serde_json::json!({"trustedPhoneNumbers": [], "phoneNumber": {"id": 7}, "securityCode": {"securityCodeLocked": true}})).is_err());
+        assert!(parse_auth_extras(201, serde_json::json!({"trustedPhoneNumbers": [], "phoneNumber": {"id": 7}, "mode": "voice"})).is_err());
+    }
+    #[test]
+    fn locked_or_cooling_down_responses_cannot_request_delivery() {
+        for name in [
+            "securityCodeLocked",
+            "securityCodeCooldown",
+            "tooManyCodesSent",
+        ] {
+            let mut value = serde_json::json!({"trustedPhoneNumbers": [], "securityCode": {}});
+            value["securityCode"][name] = serde_json::Value::Bool(true);
+            assert!(parse_auth_extras(200, value).is_err());
+        }
+    }
+    #[test]
+    fn delivery_cooldown_still_allows_an_already_sent_code() {
+        let value = serde_json::json!({"trustedPhoneNumbers": [], "phoneNumber": {"id": 9}, "securityCode": {"securityCodeCooldown": true}});
+        assert!(parse_auth_extras(201, value).unwrap().new_state.is_some());
+    }
+    #[test]
+    fn created_response_preserves_selected_challenge() {
+        let extras = parse_auth_extras(
+            201,
+            serde_json::json!({
+                "trustedPhoneNumbers": [], "phoneNumber": {"id": 9}, "mode": "sms"
+            }),
+        )
+        .unwrap();
+        assert!(
+            matches!(extras.new_state, Some(LoginState::NeedsSMS2FAVerification(ref b)) if b.phone_number.id == 9)
+        );
+    }
+    #[test]
+    fn created_response_without_challenge_number_is_an_error() {
+        assert!(parse_auth_extras(201, serde_json::json!({"trustedPhoneNumbers": []})).is_err());
+    }
+    #[test]
+    fn lookup_response_does_not_claim_code_was_sent() {
+        assert!(
+            parse_auth_extras(200, serde_json::json!({"trustedPhoneNumbers": []}))
+                .unwrap()
+                .new_state
+                .is_none()
+        );
     }
 }

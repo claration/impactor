@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, fs, io::Cursor, path::PathBuf};
 
-use crate::adi_proxy::{CLIENT_INFO_HEADER, LOOKUP_CLIENT_INFO};
+use crate::adi_proxy::LOOKUP_CLIENT_INFO;
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose;
@@ -142,6 +142,7 @@ pub struct AnisetteData {
     one_time_password: String,
     routing_info: String,
     device_description: String,
+    user_agent: String,
     local_user_id: String,
     device_unique_identifier: String,
 }
@@ -152,6 +153,7 @@ impl AnisetteData {
 
         HashMap::from_iter(
             [
+                ("User-Agent".to_string(), self.user_agent.clone()),
                 (
                     "X-Apple-I-Client-Time".to_string(),
                     dt.format("%+").to_string().replace("+00:00", "Z"),
@@ -188,13 +190,12 @@ impl AnisetteClient {
     pub async fn new(url: String) -> Result<AnisetteClient, AnisetteError> {
         let path = format!("{}/v3/client_info", url);
         let http_client = make_reqwest()?;
-        let mut client_info = http_client
+        let client_info = http_client
             .get(path)
             .send()
             .await?
             .json::<AnisetteClientInfo>()
             .await?;
-        client_info.client_info = CLIENT_INFO_HEADER.to_string();
         Ok(AnisetteClient { client_info, url })
     }
 
@@ -276,6 +277,7 @@ impl AnisetteClient {
                 one_time_password,
                 routing_info,
                 device_description: self.client_info.client_info.clone(),
+                user_agent: self.client_info.user_agent.clone(),
                 local_user_id: encode_hex(&state.md_lu()),
                 device_unique_identifier: state.device_id(),
             }),

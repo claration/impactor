@@ -8,6 +8,7 @@ use crate::Error;
 #[derive(Debug, Clone)]
 pub struct AnisetteData {
     pub base_headers: HashMap<String, String>,
+    pub user_agent: String,
     pub generated_at: SystemTime,
     pub config: AnisetteConfiguration,
 }
@@ -15,10 +16,14 @@ pub struct AnisetteData {
 impl AnisetteData {
     pub async fn new(config: AnisetteConfiguration) -> Result<Self, Error> {
         let mut b = AnisetteHeaders::get_anisette_headers_provider(config.clone())?;
-        let base_headers = b.provider.get_authentication_headers().await?;
+        let mut base_headers = b.provider.get_authentication_headers().await?;
+        let user_agent = base_headers
+            .remove("User-Agent")
+            .unwrap_or_else(|| omnisette::adi_proxy::AKD_USER_AGENT.to_string());
 
         Ok(AnisetteData {
             base_headers,
+            user_agent,
             generated_at: SystemTime::now(),
             config,
         })
@@ -49,23 +54,8 @@ impl AnisetteData {
         }
 
         let mut headers = self.base_headers.clone();
-        let old_client_info = headers.remove("X-Mme-Client-Info");
-
-        if client_info {
-            let client_info = match old_client_info {
-                Some(v) => {
-                    let temp = v.as_str();
-
-                    temp.replace(
-                        temp.split('<').nth(3).unwrap().split('>').nth(0).unwrap(),
-                        "com.apple.AuthKit/1 (com.apple.akd/1.0)",
-                    )
-                }
-                None => {
-                    return headers;
-                }
-            };
-            headers.insert("X-Mme-Client-Info".to_owned(), client_info.to_owned());
+        if !client_info {
+            headers.remove("X-Mme-Client-Info");
         }
 
         if app_info {
@@ -101,12 +91,58 @@ impl AnisetteData {
         let headers = self
             .generate_headers(true, true, true)
             .iter()
-            .map(|(k, v)| (k.to_lowercase(), v.to_lowercase()))
+            .map(|(k, v)| (k.to_lowercase(), v.clone()))
             .collect::<HashMap<String, String>>();
 
         match headers.get(&header.to_lowercase()) {
             Some(v) => Ok(v.to_string()),
             None => Err(Error::DeveloperSessionRequestFailed),
         }
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+    fn synthetic() -> AnisetteData {
+        AnisetteData {
+            base_headers: HashMap::from([
+                (
+                    "X-Mme-Client-Info".into(),
+                    "<MacTest> <Mac OS X;Test> <com.apple.AuthKit/1 (com.apple.akd/1.0)>".into(),
+                ),
+                ("X-Apple-I-MD".into(), "AbCdEf+/=".into()),
+                ("X-Apple-Locale".into(), "en_US".into()),
+            ]),
+            user_agent: "akd/1.0 CFNetwork/Test Darwin/Test".into(),
+            generated_at: SystemTime::now(),
+            config: AnisetteConfiguration::default(),
+        }
+    }
+    #[test]
+    fn identity_lookup_preserves_case_sensitive_values() {
+        let data = synthetic();
+        assert_eq!(data.get_header("X-APPLE-I-MD").unwrap(), "AbCdEf+/=");
+        assert_eq!(data.get_header("x-apple-locale").unwrap(), "en_US");
+    }
+    #[test]
+    fn identity_matches_between_srp_and_two_factor_headers() {
+        let data = synthetic();
+        assert_eq!(
+            data.get_header("x-mme-client-info").unwrap(),
+            data.generate_headers(false, true, true)["X-Mme-Client-Info"]
+        );
+        assert_eq!(
+            data.generate_headers(false, true, true)["X-Mme-Client-Info"],
+            data.base_headers["X-Mme-Client-Info"]
+        );
+    }
+    #[test]
+    fn identity_user_agent_is_not_added_to_srp_cpd() {
+        let data = synthetic();
+        let cpd = data.to_plist(true, false, false);
+        assert!(!cpd.contains_key("User-Agent"));
+        assert!(!cpd.contains_key("X-Mme-Client-Info"));
+        assert_eq!(data.user_agent, "akd/1.0 CFNetwork/Test Darwin/Test");
     }
 }

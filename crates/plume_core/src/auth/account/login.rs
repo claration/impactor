@@ -9,9 +9,9 @@ use crate::Error;
 use crate::auth::account::{check_error, parse_response};
 use crate::auth::anisette_data::AnisetteData;
 use crate::auth::{
-    Account, ChallengeRequest, ChallengeRequestBody, GSA_ENDPOINT, InitRequest, InitRequestBody,
-    LoginState, RequestHeader, TrustedPhoneNumber, TwoFactorAction, TwoFactorMethod,
-    TwoFactorRequest,
+    Account, AuthenticationExtras, ChallengeRequest, ChallengeRequestBody, GSA_ENDPOINT,
+    InitRequest, InitRequestBody, LoginState, RequestHeader, TrustedPhoneNumber, TwoFactorAction,
+    TwoFactorMethod, TwoFactorRequest, VerifyBody,
 };
 
 #[macro_export]
@@ -103,13 +103,12 @@ impl Account {
                     }
                 }
                 LoginState::NeedsSMS2FA => {
-                    if trusted_phone_numbers.is_empty() {
-                        if let Ok(extras) = _self.get_auth_extras().await {
-                            trusted_phone_numbers = extras.trusted_phone_numbers;
-                        }
-                    }
-                    let id = trusted_phone_numbers.first().map(|p| p.id).unwrap_or(1);
-                    response = _self.send_sms_2fa_to_devices(id).await?;
+                    let extras = _self.get_auth_extras().await?;
+                    trusted_phone_numbers = extras.trusted_phone_numbers.clone();
+                    response = match sms_transition(extras)? {
+                        SmsTransition::Verify(body) => LoginState::NeedsSMS2FAVerification(body),
+                        SmsTransition::Send(id) => _self.send_sms_2fa_to_devices(id).await?,
+                    };
                 }
                 LoginState::NeedsSMS2FAVerification(body) => {
                     let request = TwoFactorRequest {
@@ -160,9 +159,10 @@ impl Account {
             HeaderValue::from_str("text/x-xml-plist").unwrap(),
         );
         gsa_headers.insert("Accept", HeaderValue::from_str("*/*").unwrap());
+        gsa_headers.insert("Connection", HeaderValue::from_static("close"));
         gsa_headers.insert(
             "User-Agent",
-            HeaderValue::from_str("akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0").unwrap(),
+            HeaderValue::from_str(&anisette.user_agent).unwrap(),
         );
         gsa_headers.insert(
             "X-MMe-Client-Info",
@@ -297,5 +297,76 @@ impl Account {
             *locked = locked.refresh().await.unwrap();
         }
         locked.clone()
+    }
+}
+
+// A completed challenge must not cause another SMS delivery request.
+enum SmsTransition {
+    Verify(VerifyBody),
+    Send(u32),
+}
+
+fn sms_transition(extras: AuthenticationExtras) -> Result<SmsTransition, Error> {
+    if let Some(state) = extras.new_state {
+        return match state {
+            LoginState::NeedsSMS2FAVerification(body) => Ok(SmsTransition::Verify(body)),
+            _ => Err(Error::AuthSrpWithMessage(
+                0,
+                "Unexpected SMS authentication state".into(),
+            )),
+        };
+    }
+    match extras.trusted_phone_numbers.as_slice() {
+        [number, ..] => Ok(SmsTransition::Send(number.id)),
+        [] => Err(Error::AuthSrpWithMessage(
+            0,
+            "No trusted SMS number returned by Apple".into(),
+        )),
+    }
+}
+
+#[cfg(test)]
+mod sms_flow_tests {
+    use super::*;
+    use crate::auth::PhoneNumber;
+
+    fn extras(ids: &[u32]) -> AuthenticationExtras {
+        serde_json::from_value(serde_json::json!({
+            "trustedPhoneNumbers": ids.iter().map(|id| serde_json::json!({
+                "id": id, "numberWithDialCode": "masked", "lastTwoDigits": "00", "pushMode": "sms"
+            })).collect::<Vec<_>>()
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn already_sent_code_skips_new_delivery() {
+        let mut input = extras(&[7]);
+        input.new_state = Some(LoginState::NeedsSMS2FAVerification(VerifyBody {
+            phone_number: PhoneNumber { id: 7 },
+            mode: "sms".into(),
+            security_code: None,
+        }));
+        assert!(matches!(
+            sms_transition(input),
+            Ok(SmsTransition::Verify(_))
+        ));
+    }
+
+    #[test]
+    fn uses_server_number_instead_of_guessing_one() {
+        assert!(matches!(
+            sms_transition(extras(&[7])),
+            Ok(SmsTransition::Send(7))
+        ));
+    }
+
+    #[test]
+    fn absent_numbers_do_not_send() {
+        assert!(sms_transition(extras(&[])).is_err());
+        assert!(matches!(
+            sms_transition(extras(&[7, 8])),
+            Ok(SmsTransition::Send(7))
+        ));
     }
 }

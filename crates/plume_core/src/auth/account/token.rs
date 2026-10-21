@@ -33,9 +33,10 @@ impl Account {
             HeaderValue::from_str("text/x-xml-plist").unwrap(),
         );
         gsa_headers.insert("Accept", HeaderValue::from_str("*/*").unwrap());
+        gsa_headers.insert("Connection", HeaderValue::from_static("close"));
         gsa_headers.insert(
             "User-Agent",
-            HeaderValue::from_str("akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0").unwrap(),
+            HeaderValue::from_str(&valid_anisette.user_agent).unwrap(),
         );
         gsa_headers.insert(
             "X-MMe-Client-Info",
