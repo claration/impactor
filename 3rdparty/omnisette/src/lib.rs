@@ -57,7 +57,11 @@ pub enum AnisetteError {
 
 pub const DEFAULT_ANISETTE_URL: &str = "https://ani.f1sh.me/";
 
-pub const DEFAULT_ANISETTE_URL_V3: &str = "https://ani.sidestore.app";
+// Must be a Mac anisette server: Apple rejects non-Mac client identities at 2FA (-80046).
+pub const DEFAULT_ANISETTE_URL_V3: &str = "https://mac-ani.jkcoxson.com";
+
+// Renamed from `state.plist` so states provisioned under the old Windows identity are discarded.
+pub const ANISETTE_STATE_FILE: &str = "mac_anisette_state.plist";
 
 #[derive(Clone, Debug)]
 pub struct AnisetteConfiguration {

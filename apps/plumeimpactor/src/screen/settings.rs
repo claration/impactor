@@ -93,7 +93,7 @@ impl SettingsScreen {
             Message::SelectTeam(_, _) => Task::none(),
             Message::SelectLocale(_) => Task::none(),
             Message::ResetAnisetteData => {
-                let path = crate::defaults::get_data_path().join("state.plist");
+                let path = crate::defaults::get_data_path().join(plume_core::ANISETTE_STATE_FILE);
                 let _ = std::fs::remove_file(path);
                 Task::none()
             }

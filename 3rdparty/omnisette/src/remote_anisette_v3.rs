@@ -2,7 +2,8 @@
 
 use std::{collections::HashMap, fs, io::Cursor, path::PathBuf};
 
-use crate::adi_proxy::{CLIENT_INFO_HEADER, LOOKUP_CLIENT_INFO};
+use crate::ANISETTE_STATE_FILE;
+use crate::adi_proxy::LOOKUP_CLIENT_INFO;
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose;
@@ -188,13 +189,12 @@ impl AnisetteClient {
     pub async fn new(url: String) -> Result<AnisetteClient, AnisetteError> {
         let path = format!("{}/v3/client_info", url);
         let http_client = make_reqwest()?;
-        let mut client_info = http_client
+        let client_info = http_client
             .get(path)
             .send()
             .await?
             .json::<AnisetteClientInfo>()
             .await?;
-        client_info.client_info = CLIENT_INFO_HEADER.to_string();
         Ok(AnisetteClient { client_info, url })
     }
 
@@ -496,7 +496,7 @@ impl AnisetteHeadersProvider for RemoteAnisetteProviderV3 {
 
         fs::create_dir_all(&self.configuration_path)?;
 
-        let config_path = self.configuration_path.join("state.plist");
+        let config_path = self.configuration_path.join(ANISETTE_STATE_FILE);
         if self.state.is_none() {
             self.state = Some(if let Ok(text) = plist::from_file(&config_path) {
                 text
