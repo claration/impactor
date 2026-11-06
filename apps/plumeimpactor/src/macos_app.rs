@@ -24,6 +24,10 @@ pub(crate) fn set_main_window_visible(visible: bool) {
     if !app.setActivationPolicy(policy) {
         log::warn!("Failed to switch macOS activation policy");
     }
+
+    if visible && objc2::available!(macos = 14.0) {
+        app.activate();
+    }
 }
 
 #[cfg(target_os = "macos")]
