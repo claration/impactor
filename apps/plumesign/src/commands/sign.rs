@@ -124,9 +124,13 @@ pub async fn execute(args: SignArgs) -> Result<()> {
             if args.mac {
                 use plume_utils::Device;
 
+                let udid = plume_gestalt::get_udid()
+                    .filter(|udid| !udid.trim().is_empty())
+                    .ok_or_else(|| anyhow::anyhow!("Could not determine this Mac's UDID"))?;
+
                 Some(Device {
                     name: "My Mac".to_string(),
-                    udid: String::new(),
+                    udid,
                     device_id: 0,
                     usbmuxd_device: None,
                     is_mac: true,
