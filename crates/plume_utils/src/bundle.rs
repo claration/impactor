@@ -155,7 +155,18 @@ macro_rules! get_plist_string {
 
 impl Bundle {
     pub fn get_platform(&self) -> Option<String> {
-        get_plist_string!(self, "DTPlatformName")
+        let plist = Value::from_file(&self.info_plist_path).ok()?;
+        let dict = plist.as_dictionary()?;
+
+        dict.get("DTPlatformName")
+            .and_then(Value::as_string)
+            .filter(|platform| !platform.is_empty())
+            .or_else(|| {
+                dict.get("CFBundleSupportedPlatforms")
+                    .and_then(Value::as_array)
+                    .and_then(|platforms| platforms.iter().find_map(Value::as_string))
+            })
+            .map(str::to_ascii_lowercase)
     }
 }
 
