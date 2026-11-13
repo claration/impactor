@@ -134,7 +134,7 @@ impl Impactor {
             let (id, open_task) = window::open(defaults::default_window_settings());
             (Some(id), open_task.discard())
         };
-        crate::macos_app::set_main_window_visible(true);
+        crate::macos_app::set_main_window_visible(main_window.is_some());
         crate::macos_app::reset_activation_state();
 
         (
