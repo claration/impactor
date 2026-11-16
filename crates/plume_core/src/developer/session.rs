@@ -16,11 +16,28 @@ use crate::auth::anisette_data::AnisetteData;
 use crate::developer::qh::QHResponseMeta;
 use crate::developer::v1::V1ErrorResponse;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DeveloperDeviceType {
+    #[default]
+    Ios,
+    Tvos,
+}
+
+impl From<Option<&str>> for DeveloperDeviceType {
+    fn from(product_type: Option<&str>) -> Self {
+        match product_type {
+            Some(product_type) if product_type.starts_with("AppleTV") => Self::Tvos,
+            _ => Self::Ios,
+        }
+    }
+}
+
 pub struct DeveloperSession {
     anisette: Arc<Mutex<AnisetteData>>,
     client: Client,
     adsid: String,          // from grandslam's SPD "adsid"
     xcode_gs_token: String, // requested from spd initially // com.apple.gs.xcode.auth
+    device_type: DeveloperDeviceType,
 }
 
 impl DeveloperSession {
@@ -43,6 +60,7 @@ impl DeveloperSession {
             client: account.client.clone(),
             adsid: adsid.into(),
             xcode_gs_token,
+            device_type: DeveloperDeviceType::default(),
         })
     }
 
@@ -67,6 +85,7 @@ impl DeveloperSession {
             client,
             adsid,
             xcode_gs_token,
+            device_type: DeveloperDeviceType::default(),
         };
 
         // we test the session by listing teams
@@ -82,6 +101,10 @@ impl DeveloperSession {
 
     pub fn xcode_gs_token(&self) -> &String {
         &self.xcode_gs_token
+    }
+
+    pub fn set_device_type(&mut self, device_type: DeveloperDeviceType) {
+        self.device_type = device_type;
     }
 }
 
@@ -102,6 +125,9 @@ impl DeveloperSession {
             "requestId".into(),
             Value::String(Uuid::new_v4().to_string().to_uppercase()),
         );
+        if self.device_type == DeveloperDeviceType::Tvos {
+            body.insert("subPlatform".into(), Value::String("tvOS".into()));
+        }
 
         let request_builder = self.client.post(url).headers(headers);
 
