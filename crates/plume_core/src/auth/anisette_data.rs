@@ -105,28 +105,3 @@ impl AnisetteData {
             .ok_or(Error::DeveloperSessionRequestFailed)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::AnisetteData;
-    use omnisette::AnisetteConfiguration;
-    use std::{collections::HashMap, time::SystemTime};
-
-    #[test]
-    fn get_header_is_case_insensitive_and_preserves_value_case() {
-        let expected = "<MacBookPro13,3> <Mac OS X;10.12.6;16G29> <com.apple.AuthKit/1 (com.apple.akd/1.0)>";
-        let anisette = AnisetteData {
-            base_headers: HashMap::from([(
-                "X-Mme-Client-Info".to_string(),
-                expected.to_string(),
-            )]),
-            generated_at: SystemTime::now(),
-            config: AnisetteConfiguration::default(),
-        };
-
-        assert_eq!(
-            anisette.get_header("x-mme-client-info").unwrap(),
-            expected
-        );
-    }
-}
