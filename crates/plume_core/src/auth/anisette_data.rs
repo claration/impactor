@@ -98,15 +98,10 @@ impl AnisetteData {
     }
 
     pub fn get_header(&self, header: &str) -> Result<String, Error> {
-        let headers = self
-            .generate_headers(true, true, true)
-            .iter()
-            .map(|(k, v)| (k.to_lowercase(), v.to_lowercase()))
-            .collect::<HashMap<String, String>>();
-
-        match headers.get(&header.to_lowercase()) {
-            Some(v) => Ok(v.to_string()),
-            None => Err(Error::DeveloperSessionRequestFailed),
-        }
+        self.generate_headers(true, true, true)
+            .into_iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(header))
+            .map(|(_, value)| value)
+            .ok_or(Error::DeveloperSessionRequestFailed)
     }
 }
