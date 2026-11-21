@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Args;
 
 use plume_core::{CertificateIdentity, MobileProvision};
-use plume_utils::{Bundle, Package, Signer, SignerMode, SignerOptions};
+use plume_utils::{Bundle, Package, Signer, SignerFeatures, SignerMode, SignerOptions};
 
 use crate::{
     commands::{
@@ -41,6 +41,9 @@ pub struct SignArgs {
     /// Perform ad-hoc signing (no certificate required)
     #[arg(long, short, num_args = 1..)]
     pub tweaks: Option<Vec<PathBuf>>,
+    /// Force Liquid Glass UI (iOS 26+)
+    #[arg(long = "liquid-glass")]
+    pub liquid_glass: bool,
     /// Register device and install after signing
     #[arg(long)]
     pub register_and_install: bool,
@@ -68,6 +71,10 @@ pub async fn execute(args: SignArgs) -> Result<()> {
         custom_name: args.name,
         custom_version: args.version,
         tweaks: args.tweaks,
+        features: SignerFeatures {
+            support_liquid_glass: args.liquid_glass,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
