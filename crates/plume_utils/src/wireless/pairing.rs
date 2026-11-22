@@ -44,7 +44,15 @@ where
         let socket = connect(address).await?;
         let mut client = RemotePairingClient::new(socket, host, &mut pairing_file);
 
-        client.connect(|_: u8| pin_callback(), 0u8).await?;
+        client
+            .connect(
+                |_: u8| {
+                    let pin = pin_callback();
+                    async move { six_byte_pin(pin.await) }
+                },
+                0u8,
+            )
+            .await?;
         PairedDevice::from(client.paired_peer_device()?)
     };
 
@@ -69,7 +77,7 @@ pub async fn verify(
         .connect(
             |_: u8| {
                 pin_requested.store(true, Ordering::Relaxed);
-                async { String::new() }
+                async { six_byte_pin(String::new()) }
             },
             0u8,
         )
@@ -85,7 +93,33 @@ pub async fn verify(
     Ok(())
 }
 
+/// The pairing library slices the first six bytes of the PIN and panics on anything shorter.
+fn six_byte_pin(pin: String) -> String {
+    if pin.len() >= 6 {
+        pin
+    } else {
+        format!("{pin:0<6}")
+    }
+}
+
 async fn connect(address: SocketAddr) -> Result<RpPairingSocket<tokio::net::TcpStream>, Error> {
     let stream = tokio::net::TcpStream::connect(address).await?;
     Ok(RpPairingSocket::new(stream))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_pins_are_padded_to_six_bytes() {
+        assert_eq!(six_byte_pin(String::new()), "000000");
+        assert_eq!(six_byte_pin("12".to_string()), "120000");
+    }
+
+    #[test]
+    fn full_pins_are_left_alone() {
+        assert_eq!(six_byte_pin("123456".to_string()), "123456");
+        assert_eq!(six_byte_pin("1234567".to_string()), "1234567");
+    }
 }
