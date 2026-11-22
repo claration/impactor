@@ -198,6 +198,14 @@ impl Impactor {
                 Task::none()
             }
             Message::DeviceConnected(device) => {
+                if !device
+                    .udid
+                    .chars()
+                    .all(|c| c.is_ascii_hexdigit() || c == '-')
+                {
+                    return Task::none();
+                }
+
                 if !self.devices.iter().any(|d| d.device_id == device.device_id) {
                     self.devices.push(device.clone());
 
