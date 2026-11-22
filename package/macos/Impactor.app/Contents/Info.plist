@@ -34,6 +34,13 @@
 	<string>AppIcon</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 CLARATION</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Impactor uses the local network to find and pair with wireless devices such as Apple TVs.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_remotepairing._tcp</string>
+		<string>_remotepairing-manual-pairing._tcp</string>
+	</array>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 </dict>

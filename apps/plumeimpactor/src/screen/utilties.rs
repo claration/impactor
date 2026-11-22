@@ -2,6 +2,7 @@ use iced::widget::{button, column, container, row, rule, scrollable, text, toggl
 use iced::{Center, Color, Element, Task};
 use rust_i18n::t;
 
+use super::appletv;
 use crate::appearance;
 use crate::defaults::get_data_path;
 use plume_utils::{Device, SignerAppReal};
@@ -47,6 +48,7 @@ pub enum Message {
     PairResult(Result<(), String>),
     InstallPairingResult(String, Result<(), String>),
     ToggleRPPairing(bool),
+    AppleTv(appletv::Message),
 }
 
 #[derive(Debug, Clone)]
@@ -58,9 +60,16 @@ pub struct UtilitiesScreen {
     loading: bool,
     trust_loading: bool,
     pub rppairing_enabled: bool,
+    appletv: appletv::AppleTvSection,
 }
 
 impl UtilitiesScreen {
+    pub fn dialog(&self) -> Option<Element<'_, Message>> {
+        self.appletv
+            .dialog()
+            .map(|dialog| dialog.map(Message::AppleTv))
+    }
+
     pub fn new(device: Option<Device>) -> Self {
         let mut screen = Self {
             device,
@@ -70,6 +79,7 @@ impl UtilitiesScreen {
             loading: false,
             trust_loading: false,
             rppairing_enabled: false,
+            appletv: appletv::AppleTvSection::default(),
         };
 
         if screen.device.as_ref().map(|d| d.is_mac).unwrap_or(false) {
@@ -78,12 +88,20 @@ impl UtilitiesScreen {
             )));
         }
 
+        if screen.device.as_ref().is_some_and(|d| d.is_tvos()) {
+            screen.status_message = Some(StatusMessage::success(t!("utilities_tvos_use_pairing")));
+        }
+
         screen
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::RefreshApps(_) => {
+                if self.device.as_ref().is_some_and(|d| d.is_tvos()) {
+                    return Task::none();
+                }
+
                 self.loading = true;
                 self.status_message = None;
                 self.app_statuses.clear();
@@ -238,6 +256,7 @@ impl UtilitiesScreen {
                 self.app_statuses.insert(app_key, status);
                 Task::none()
             }
+            Message::AppleTv(message) => self.appletv.update(message).map(Message::AppleTv),
             Message::ToggleRPPairing(enabled) => {
                 self.rppairing_enabled = enabled;
                 Task::perform(async move { Message::RefreshApps(enabled) }, |msg| msg)
@@ -266,7 +285,12 @@ impl UtilitiesScreen {
             content = content.push(text(&status.text).size(14).color(status.color()));
         }
 
-        if self.device.is_some() && !self.device.as_ref().unwrap().is_mac {
+        let lockdown_device = self
+            .device
+            .as_ref()
+            .is_some_and(|d| !d.is_mac && !d.is_tvos());
+
+        if lockdown_device {
             let refresh_button_text = if self.loading {
                 t!("utilities_loading")
             } else {
@@ -306,7 +330,9 @@ impl UtilitiesScreen {
             .label(t!("utilities_use_remote_pairing"))
             .on_toggle(Message::ToggleRPPairing);
 
-        content = content.push(toggle);
+        if !self.device.as_ref().is_some_and(|d| d.is_tvos()) {
+            content = content.push(toggle);
+        }
 
         if !self.installed_apps.is_empty() {
             content = content
@@ -343,6 +369,10 @@ impl UtilitiesScreen {
 
             content = content.push(apps_list);
         }
+
+        content = content
+            .push(container(rule::horizontal(1)).padding([appearance::THEME_PADDING, 0.0]))
+            .push(self.appletv.view().map(Message::AppleTv));
 
         container(scrollable(content)).into()
     }
