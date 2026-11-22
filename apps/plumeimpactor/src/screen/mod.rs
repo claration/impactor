@@ -1,3 +1,4 @@
+mod appletv;
 pub(crate) mod general;
 mod package;
 mod progress;
@@ -8,10 +9,10 @@ mod windows;
 use std::collections::VecDeque;
 
 use iced::Length::Fill;
-use iced::widget::operation::{focus_next,focus_previous};
-use iced::widget::{button, column, container, pick_list, row, stack, text};
 use iced::event::{self, Event, Status};
 use iced::keyboard::{self, Key, key};
+use iced::widget::operation::{focus_next, focus_previous};
+use iced::widget::{button, column, container, pick_list, row, stack, text};
 use iced::window;
 use iced::{Element, Subscription, Task};
 
@@ -37,7 +38,9 @@ pub enum Message {
     NavigateToScreen(ImpactorScreenType),
     NextScreen,
     PreviousScreen,
-    TabPressed { shift: bool },
+    TabPressed {
+        shift: bool,
+    },
 
     // Device management
     ComboBoxSelected(String),
@@ -198,6 +201,14 @@ impl Impactor {
                 Task::none()
             }
             Message::DeviceConnected(device) => {
+                if !device
+                    .udid
+                    .chars()
+                    .all(|c| c.is_ascii_hexdigit() || c == '-')
+                {
+                    return Task::none();
+                }
+
                 if !self.devices.iter().any(|d| d.device_id == device.device_id) {
                     self.devices.push(device.clone());
 
@@ -831,7 +842,9 @@ impl Impactor {
                     ..
                 }),
                 Status::Ignored,
-            ) => Some(Message::TabPressed { shift: modifiers.shift() }),
+            ) => Some(Message::TabPressed {
+                shift: modifiers.shift(),
+            }),
             _ => None,
         });
 
@@ -872,10 +885,21 @@ impl Impactor {
         let base: Element<'_, Message> =
             container(column(vec![top_bar, screen_content]).spacing(appearance::THEME_PADDING))
                 .padding(appearance::THEME_PADDING)
+                .width(Fill)
+                .height(Fill)
                 .into();
+
+        let pairing_dialog = match &self.current_screen {
+            ImpactorScreen::Utilities(screen) => screen
+                .dialog()
+                .map(|dialog| dialog.map(Message::UtilitiesScreen)),
+            _ => None,
+        };
 
         if self.certificate_reset_queue.front().is_some() {
             stack![base, self.view_certificate_reset_prompt()].into()
+        } else if let Some(dialog) = pairing_dialog {
+            stack![base, dialog].into()
         } else {
             base
         }
