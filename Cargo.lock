@@ -2393,6 +2393,9 @@ name = "fastrand"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
+dependencies = [
+ "getrandom 0.3.4",
+]
 
 [[package]]
 name = "fdeflate"
@@ -2475,6 +2478,18 @@ dependencies = [
  "crc32fast",
  "miniz_oxide",
  "zlib-rs",
+]
+
+[[package]]
+name = "flume"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e139bc46ca777eb5efaf62df0ab8cc5fd400866427e56c68b22e414e53bd3be"
+dependencies = [
+ "fastrand",
+ "futures-core",
+ "futures-sink",
+ "spin",
 ]
 
 [[package]]
@@ -2777,6 +2792,17 @@ checksum = "1bd49230192a3797a9a4d6abe9b3eed6f7fa4c8a8a4947977c6f80025f92cbd8"
 dependencies = [
  "rustix 1.1.4",
  "windows-link 0.2.1",
+]
+
+[[package]]
+name = "getifaddrs"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a542e1b7ac1f3d62c5777d430d66eca9cb59e813c46b86e29fa9ce94ff9a4810"
+dependencies = [
+ "bitflags 2.11.1",
+ "libc",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3693,7 +3719,6 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 [[package]]
 name = "idevice"
 version = "0.1.58"
-source = "git+https://github.com/jkcoxson/idevice?rev=5171e34e3a236842af1160a84d955d037ddca3af#5171e34e3a236842af1160a84d955d037ddca3af"
 dependencies = [
  "aes 0.8.4",
  "async-stream",
@@ -3714,6 +3739,8 @@ dependencies = [
  "json",
  "libc",
  "ns-keyed-archive",
+ "obfstr",
+ "openssl",
  "plist",
  "plist-macro",
  "rand 0.10.1",
@@ -3727,8 +3754,10 @@ dependencies = [
  "siphasher",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-openssl",
  "tokio-rustls",
  "tracing",
+ "tun-rs",
  "uuid",
  "x25519-dalek",
  "x509-cert",
@@ -4183,6 +4212,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "libloading"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1832accd5a4ca2795ace4d05d15c4039be15b62d3b950eff99746a990e3cc10"
+dependencies = [
+ "cfg-if",
+ "windows-link 0.2.1",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4581,6 +4620,70 @@ dependencies = [
 ]
 
 [[package]]
+name = "netconfig-rs"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62788570b3ed95a6f7dfbc5db10b8d4be60ca5a4da5c27a8de5326510aa32898"
+dependencies = [
+ "cfg-if",
+ "core-foundation 0.10.1",
+ "ipnet",
+ "libc",
+ "netlink-packet-core",
+ "netlink-packet-route 0.33.0",
+ "netlink-sys",
+ "nix 0.30.1",
+ "scopeguard",
+ "system-configuration-sys",
+ "thiserror 2.0.18",
+ "widestring 1.2.1",
+ "windows 0.61.3",
+]
+
+[[package]]
+name = "netlink-packet-core"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d6e2daf9a8c2e21302714706860a0e6be02e03d17294ecc66b354ea7d4059dd"
+
+[[package]]
+name = "netlink-packet-route"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59d48ffc8b73a506e1ff0878528c72668f2bfbc3d875b6be890a96be5d0d5576"
+dependencies = [
+ "bitflags 2.11.1",
+ "libc",
+ "log",
+ "netlink-packet-core",
+ "zerocopy",
+]
+
+[[package]]
+name = "netlink-packet-route"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3c407d8e95c0128ee5729728482a369f3ba9a0d9ba8335c20949a8d8989cf6b"
+dependencies = [
+ "bitflags 2.11.1",
+ "libc",
+ "log",
+ "netlink-packet-core",
+ "zerocopy",
+]
+
+[[package]]
+name = "netlink-sys"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c99d38e00b420df49e940fe0826e667c3dad82ac68eb4c2bbf754c1c14a83a10"
+dependencies = [
+ "bytes",
+ "libc",
+ "log",
+]
+
+[[package]]
 name = "nix"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4591,6 +4694,32 @@ dependencies = [
  "cfg-if",
  "libc",
  "memoffset 0.6.5",
+]
+
+[[package]]
+name = "nix"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
+dependencies = [
+ "bitflags 2.11.1",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+ "memoffset 0.9.1",
+]
+
+[[package]]
+name = "nix"
+version = "0.31.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d"
+dependencies = [
+ "bitflags 2.11.1",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+ "memoffset 0.9.1",
 ]
 
 [[package]]
@@ -4738,6 +4867,12 @@ checksum = "5c7398b9c8b70908f6371f47ed36737907c87c52af34c268fed0bf0ceb92ead9"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "obfstr"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cf5f1acbf6ef57cef9d127e72c4afd01d6b08692616fd09afad7f7807d6eb78"
 
 [[package]]
 name = "objc"
@@ -5248,6 +5383,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
+name = "openssl-src"
+version = "300.6.1+3.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46eb8fb9fb3b61ce1c0f8a026c4c1a0714d3a9e138e7fbde78753ce2babc3846"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.114"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5255,6 +5399,7 @@ checksum = "13ce1245cd07fcc4cfdb438f7507b0c7e4f3849a69fd84d52374c66d83741bb6"
 dependencies = [
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -5678,6 +5823,7 @@ dependencies = [
  "idevice",
  "image",
  "log",
+ "openssl",
  "plist",
  "plume_core",
  "plume_store",
@@ -6496,6 +6642,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "route_manager"
+version = "0.2.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c827d70e9d1546bbdc7fda189a1727f277d1a6ffdc05954a8350002d0d9bc15a"
+dependencies = [
+ "flume",
+ "libc",
+ "netlink-packet-core",
+ "netlink-packet-route 0.34.0",
+ "netlink-sys",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "roxmltree"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7134,7 +7294,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4637485391f8545c9d3dbf60f9d9aab27a90c789a700999677583bcb17c8795d"
 dependencies = [
  "libc",
- "nix",
+ "nix 0.23.2",
  "thiserror 1.0.69",
  "widestring 0.4.3",
  "winapi",
@@ -7338,6 +7498,9 @@ name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+dependencies = [
+ "lock_api",
+]
 
 [[package]]
 name = "spirv"
@@ -7732,7 +7895,9 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",
@@ -7756,6 +7921,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
 dependencies = [
  "native-tls",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-openssl"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59df6849caa43bb7567f9a36f863c447d95a11d5903c9cc334ba32576a27eadd"
+dependencies = [
+ "openssl",
+ "openssl-sys",
  "tokio",
 ]
 
@@ -8040,6 +8216,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 dependencies = [
  "core_maths",
+]
+
+[[package]]
+name = "tun-rs"
+version = "2.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19e3459c60bb1cd4a5969fced4299be335b3e3169d8cb3466ffe23da56eeeeb4"
+dependencies = [
+ "blocking",
+ "byteorder",
+ "bytes",
+ "encoding_rs",
+ "getifaddrs",
+ "ipnet",
+ "libc",
+ "libloading 0.9.1",
+ "log",
+ "netconfig-rs",
+ "nix 0.31.3",
+ "route_manager",
+ "scopeguard",
+ "tokio",
+ "widestring 1.2.1",
+ "windows-sys 0.61.2",
+ "winreg",
 ]
 
 [[package]]
@@ -9420,6 +9621,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ee1708bef14716a11bae175f579062d4554d95be2c6829f518df847b7b3fdd0"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winreg"
+version = "0.56.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d6f32a0ff4a9f6f01231eb2059cc85479330739333e0e58cadf03b6af2cca10"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

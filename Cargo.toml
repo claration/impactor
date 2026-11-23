@@ -35,9 +35,12 @@ incremental = true          # Improves re-compile times
 [workspace.dependencies]
 tokio = { version = "1.43", features = ["rt-multi-thread"] }
 # Application
-idevice = { git = "https://github.com/jkcoxson/idevice", rev = "5171e34e3a236842af1160a84d955d037ddca3af", default-features = false, features = [
+idevice = { path = "3rdparty/idevice", default-features = false, features = [
     "full",
     "ring",
+    # OpenSSL is only used for the TLS handshake with legacy (pre-iOS 9) devices,
+    # whose lockdownd can't negotiate with rustls. See 3rdparty/idevice/src/lib.rs.
+    "openssl",
 ] }
 plist = "1.8"
 goblin = "0.9"

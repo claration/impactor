@@ -9,6 +9,9 @@ repository.workspace = true
 
 [dependencies]
 idevice.workspace = true
+# Statically link OpenSSL so release builds don't depend on a system OpenSSL.
+# idevice uses it only for the legacy (pre-iOS 9) device TLS handshake.
+openssl = { version = "0.10", features = ["vendored"] }
 thiserror.workspace = true
 uuid.workspace = true
 plist.workspace = true

@@ -1,0 +1,216 @@
+[package]
+name = "idevice"
+description = "A Rust library to interact with services on iOS devices."
+authors = ["Jackson Coxson"]
+version = "0.1.58"
+edition = "2024"
+license = "MIT"
+documentation = "https://docs.rs/idevice"
+repository = "https://github.com/jkcoxson/idevice"
+keywords = ["lockdownd", "ios"]
+
+
+[dependencies]
+tokio = { version = "1", features = ["io-util"] }
+tokio-rustls = { version = "0.26", default-features = false, optional = true }
+rustls = { version = "0.23", default-features = false, features = [
+  "std",
+  "tls12",
+], optional = true }
+tokio-openssl = { version = "0.6", optional = true }
+openssl = { version = "0.10", optional = true }
+
+plist = { version = "1.8" }
+plist-macro = { version = "0.1.6" }
+serde = { version = "1", features = ["derive"] }
+ns-keyed-archive = { version = "0.1.5", optional = true }
+jktcp = { version = "0.1.1", optional = true }
+
+thiserror = { version = "2" }
+tracing = { version = "0.1.41" }
+base64 = { version = "0.22" }
+
+indexmap = { version = "2.11", features = ["serde"], optional = true }
+uuid = { version = "1.18", features = ["serde", "v3", "v4"], optional = true }
+chrono = { version = "0.4", optional = true, default-features = false, features = [
+  "serde",
+] }
+
+serde_json = { version = "1", optional = true }
+json = { version = "0.12", optional = true }
+byteorder = { version = "1.5", optional = true }
+bytes = { version = "1.10", optional = true }
+
+reqwest = { version = "0.13", features = [
+  "json",
+], optional = true, default-features = false }
+futures = { version = "0.3", optional = true }
+async-stream = { version = "0.3.6", optional = true }
+
+sha2 = { version = "0.10", optional = true, features = ["oid"] }
+
+rsa = { version = "0.9", optional = true, features = ["sha2"] }
+x509-cert = { version = "0.2", optional = true, features = [
+  "builder",
+  "pem",
+], default-features = false }
+x25519-dalek = { version = "2", optional = true }
+ed25519-dalek = { version = "2", features = ["rand_core"], optional = true }
+hkdf = { version = "0.12", optional = true }
+chacha20poly1305 = { version = "0.10", optional = true }
+aes = { version = "0.8", optional = true }
+cbc = { version = "0.1", features = ["alloc"], optional = true }
+hmac = { version = "0.12", optional = true }
+sha1 = { version = "0.10", optional = true }
+siphasher = { version = "1", optional = true }
+idevice-srp = { version = "0.6", optional = true }
+rand = { version = "0.10" }
+
+obfstr = { version = "0.4", optional = true }
+
+async_zip = { version = "0.0.18", optional = true }
+
+[target.'cfg(not(windows))'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tokio = { version = "1.43", features = ["full"] }
+tun-rs = { version = "2.0.8", features = ["async_tokio"] }
+bytes = "1.10.1"
+
+[features]
+default = ["aws-lc"]
+aws-lc = ["rustls", "rustls/aws-lc-rs", "tokio-rustls/aws-lc-rs"]
+ring = ["rustls", "rustls/ring", "tokio-rustls/ring"]
+rustls = ["dep:rustls", "dep:tokio-rustls"]
+openssl = ["dep:openssl", "dep:tokio-openssl"]
+
+afc = ["dep:chrono", "dep:futures"]
+amfi = []
+bt_packet_logger = []
+companion_proxy = []
+core_device = ["xpc", "dep:uuid", "dep:ns-keyed-archive"]
+core_device_proxy = ["dep:serde_json", "dep:json", "dep:byteorder"]
+crashreportcopymobile = ["afc"]
+debug_proxy = []
+diagnostics_relay = []
+dvt = ["dep:byteorder", "dep:ns-keyed-archive"]
+energy_monitor = ["dvt"]
+graphics = ["dvt", "rsd"]
+device_info = ["dvt"]
+application_listing = ["dvt"]
+condition_inducer = ["dvt"]
+network_monitor = ["dvt"]
+sysmontap = ["dvt", "energy_monitor"]
+heartbeat = ["tokio/macros", "tokio/time"]
+house_arrest = ["afc"]
+installation_proxy = [
+  "dep:async_zip",
+  "dep:futures",
+  "async_zip/tokio",
+  "async_zip/deflate",
+  "tokio/fs",
+]
+installcoordination_proxy = []
+xctest = [
+  "dvt",
+  "installation_proxy",
+  "afc",
+  "dep:uuid",
+  "dep:ns-keyed-archive",
+  "tunnel_tcp_stack",
+  "rsd",
+  "core_device_proxy",
+]
+springboardservices = []
+misagent = []
+mobile_image_mounter = ["dep:sha2"]
+mobileactivationd = ["dep:reqwest"]
+mobilebackup2 = []
+wda = ["dep:serde_json", "tokio/time", "tokio/net"]
+notification_proxy = [
+  "tokio/macros",
+  "tokio/time",
+  "dep:async-stream",
+  "dep:futures",
+]
+location_simulation = []
+pair = ["chrono/default", "tokio/time", "dep:sha2", "dep:rsa", "dep:x509-cert"]
+pcapd = []
+preboard_service = []
+obfuscate = ["dep:obfstr"]
+remote_pairing = [
+  "dep:serde_json",
+  "dep:json",
+  "dep:x25519-dalek",
+  "dep:ed25519-dalek",
+  "dep:hkdf",
+  "dep:chacha20poly1305",
+  "dep:idevice-srp",
+  "dep:siphasher",
+  "dep:uuid",
+  "dep:aes",
+  "dep:cbc",
+  "dep:hmac",
+  "dep:sha1",
+]
+restore_service = []
+rsd = ["xpc"]
+screenshotr = []
+syslog_relay = ["dep:bytes"]
+tcp = ["tokio/net"]
+tunnel_tcp_stack = ["dep:jktcp"]
+tss = ["dep:uuid", "dep:reqwest"]
+tunneld = ["dep:serde_json", "dep:json", "dep:reqwest"]
+usbmuxd = ["tokio/net", "dep:futures"]
+xpc = ["dep:indexmap", "dep:uuid", "dep:async-stream", "dep:futures"]
+full = [
+  "afc",
+  "amfi",
+  "bt_packet_logger",
+  "companion_proxy",
+  "core_device",
+  "core_device_proxy",
+  "crashreportcopymobile",
+  "debug_proxy",
+  "diagnostics_relay",
+  "dvt",
+  "energy_monitor",
+  "graphics",
+  "device_info",
+  "application_listing",
+  "condition_inducer",
+  "network_monitor",
+  "sysmontap",
+  "heartbeat",
+  "house_arrest",
+  "installation_proxy",
+  "installcoordination_proxy",
+  "xctest",
+  "location_simulation",
+  "misagent",
+  "mobile_image_mounter",
+  "mobileactivationd",
+  "mobilebackup2",
+  "wda",
+  "notification_proxy",
+  "pair",
+  "pcapd",
+  "preboard_service",
+  "remote_pairing",
+  "restore_service",
+  "rsd",
+  "screenshotr",
+  "springboardservices",
+  "syslog_relay",
+  "tcp",
+  "tunnel_tcp_stack",
+  "tss",
+  "tunneld",
+  "usbmuxd",
+  "xpc",
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
