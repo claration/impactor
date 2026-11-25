@@ -111,8 +111,9 @@ impl DeveloperSession {
         log::debug!("QH Request to {}: {:?}", url, body);
 
         let response = request_builder.body(buffer).send().await?;
+        let status = response.status();
         let response_bytes = response.bytes().await?;
-        let response_dict: Dictionary = plist::from_bytes(&response_bytes)?;
+        let response_dict = parse_qh_response(url, status, &response_bytes)?;
 
         log::debug!("QH Response from {}: {:?}", url, response_dict);
 
@@ -221,4 +222,56 @@ pub enum RequestType {
     Get,
     Post,
     Patch,
+}
+
+fn parse_qh_response(
+    url: &str,
+    status: reqwest::StatusCode,
+    body: &[u8],
+) -> Result<Dictionary, Error> {
+    if !status.is_success() {
+        return Err(Error::GeneralHttpError {
+            url: url.to_string(),
+            status: status.as_u16(),
+        });
+    }
+    Ok(plist::from_bytes(body)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_text_http_error_is_not_parsed_as_plist() {
+        let error = parse_qh_response(
+            "https://example.com/addDevice.action",
+            reqwest::StatusCode::BAD_REQUEST,
+            b"HTTP 400 Bad Request",
+        )
+        .unwrap_err();
+        assert!(
+            matches!(error, Error::GeneralHttpError { status: 400, ref url } if url.ends_with("/addDevice.action"))
+        );
+    }
+
+    #[test]
+    fn successful_response_still_requires_a_plist_dictionary() {
+        let mut body = Vec::new();
+        let mut expected = Dictionary::new();
+        expected.insert("resultCode".into(), Value::Integer(0.into()));
+        plist::to_writer_xml(&mut body, &expected).unwrap();
+        assert_eq!(
+            parse_qh_response("https://example.com", reqwest::StatusCode::OK, &body).unwrap(),
+            expected
+        );
+        assert!(matches!(
+            parse_qh_response(
+                "https://example.com",
+                reqwest::StatusCode::OK,
+                b"HTTP 400 Bad Request"
+            ),
+            Err(Error::Plist(_))
+        ));
+    }
 }
